@@ -1,0 +1,24 @@
+[project]
+name = "neural-sdf"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Andrii Podriez", email = "andrey5577990@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.4",
+    "polyscope>=2.6.1",
+    "rtree>=1.4.1",
+    "scikit-image>=0.26.0",
+    "torch>=2.14.1",
+    "trimesh>=5.2.0",
+]
+
+[project.scripts]
+neural-sdf = "neural_sdf:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
