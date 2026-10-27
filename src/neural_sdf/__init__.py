@@ -17,7 +17,7 @@ def main() -> None:
     BUNNY_PATH = "data/bunny_watertight.obj"
     bunny_mesh = trimesh.load_mesh(BUNNY_PATH)
 
-    # train_model(BUNNY_PATH, device)
+    train_model(BUNNY_PATH, device)
 
     model = SDFNet()
     model.load_state_dict(torch.load("model.pt"))

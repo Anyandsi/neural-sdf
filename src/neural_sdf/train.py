@@ -7,9 +7,9 @@ from neural_sdf.data import generate_dataset
 import numpy as np
 
 # values from head
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0001
 BATCH_SIZE = 64
-EPOCHS = 240
+EPOCHS = 120
 
 def train_loop(dataloader, model, loss_fn, optimizer, batch_size):
     model.train()
