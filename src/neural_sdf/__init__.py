@@ -6,6 +6,7 @@ import numpy as np
 from neural_sdf.train import train_model
 from neural_sdf.model import SDFNet
 from skimage.measure import marching_cubes
+from mesh_to_sdf.utils import scale_to_unit_sphere
 
 def main() -> None:
     device="cuda"
@@ -14,8 +15,9 @@ def main() -> None:
 
     # meshes to train on
     BUNNY_PATH = "data/bunny_watertight.obj"
+    bunny_mesh = trimesh.load_mesh(BUNNY_PATH)
 
-    train_model(BUNNY_PATH, device)
+    # train_model(BUNNY_PATH, device)
 
     model = SDFNet()
     model.load_state_dict(torch.load("model.pt"))
@@ -33,9 +35,13 @@ def main() -> None:
     
     sdf_grid = np.concatenate(out).reshape(res, res, res)
     print("predictions: ", sdf_grid.min(), sdf_grid.max())
-    verts, faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
-    verts += xs[0]
+    r_vertices, r_faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
+    r_vertices += xs[0]
 
+    # add original for comparison
+    bunny_mesh = scale_to_unit_sphere(bunny_mesh)
+    
     ps.init()
-    ps.register_surface_mesh("reconstructed mesh", verts, faces)
+    ps.register_surface_mesh("reconstructed mesh", r_vertices, r_faces)
+    ps.register_surface_mesh("original mesh", bunny_mesh.vertices, bunny_mesh.faces).translate([2.5, 0, 0])
     ps.show()
