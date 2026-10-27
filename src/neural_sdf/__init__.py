@@ -1,37 +1,41 @@
 import torch
+import trimesh
+import pymeshlab
 import polyscope as ps
 import numpy as np
 from neural_sdf.train import train_model
 from neural_sdf.model import SDFNet
-from neural_sdf.data import BOUND
 from skimage.measure import marching_cubes
 
 def main() -> None:
-    # train_model()
+    device="cuda"
+    bound = 1.0 # match the normalization in mesh_to_sdf step
+    res = 256
+
+    # meshes to train on
+    BUNNY_PATH = "data/bunny_watertight.obj"
+
+    train_model(BUNNY_PATH, device)
 
     model = SDFNet()
-    model.load_state_dict(torch.load("torus.pt"))
+    model.load_state_dict(torch.load("model.pt"))
+    model.to(device)
     model.eval()
 
     # visualize
-    grid_resolution = 50
-
-    xs = np.linspace(-BOUND, BOUND, grid_resolution)
-    X, Y, Z = np.meshgrid(xs, xs, xs, indexing="ij")
-    grid_points = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
-
-    grid_tensor = torch.from_numpy(grid_points).float()
-    chunks = []
     with torch.no_grad():
-        for chunk in torch.split(grid_tensor, 65536):
-            chunks.append(model(chunk))
+        xs = np.linspace(-bound, bound, res, dtype=np.float32)
+        grid = np.stack(np.meshgrid(xs, xs, xs, indexing="ij"), axis=-1).reshape(-1, 3)
+        out = []
 
-    volume = torch.cat(chunks).numpy().reshape(grid_resolution, grid_resolution, grid_resolution)
-
-    spacing = xs[1] - xs[0]
-    verts, faces, normals, values = marching_cubes(volume, level=0.0, spacing=(spacing, spacing, spacing))
-    verts -= BOUND
+        for chunk in np.array_split(grid, 64):
+            out.append(model(torch.from_numpy(chunk).to(device)).squeeze(-1).cpu().numpy())
+    
+    sdf_grid = np.concatenate(out).reshape(res, res, res)
+    print("predictions: ", sdf_grid.min(), sdf_grid.max())
+    verts, faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
+    verts += xs[0]
 
     ps.init()
-    ps.register_surface_mesh("learned torus", verts, faces)
+    ps.register_surface_mesh("reconstructed mesh", verts, faces)
     ps.show()

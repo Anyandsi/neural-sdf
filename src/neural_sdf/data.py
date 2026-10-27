@@ -1,21 +1,19 @@
+import trimesh
+import warnings
 import numpy as np
+from mesh_to_sdf import sample_sdf_near_surface
 
-# values out of the head
-R = 0.4
-r = 0.2
-MARGIN = 1.2 # +20%
-BOUND = (R + r) * MARGIN
+def generate_dataset(filepath: str):
+    print("Loading " + filepath)
+    mesh = trimesh.load_mesh(filepath)
 
-def torus_sdf(points):
-    q = np.stack(
-        [np.linalg.norm(points[:, [0,2]], axis=-1) - R, points[:, 1]],
-        axis=-1
-    )
+    if not mesh.is_watertight:
+        warnings.warn(filepath + " mesh is not watertight!")
+    
+    points, sdf = sample_sdf_near_surface(mesh, number_of_points=100000)
 
-    return np.linalg.norm(q, axis=-1) - r
-
-def generate_dataset():
+    # shuffle
     rng = np.random.default_rng(0)
+    shuffle_idx = rng.permutation(len(points))
 
-    points = rng.uniform(-BOUND, BOUND, size=(100_000, 3))
-    return points
+    return points[shuffle_idx], sdf[shuffle_idx]

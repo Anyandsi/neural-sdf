@@ -3,13 +3,13 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 from neural_sdf.model import SDFNet
-from neural_sdf.data import generate_dataset, torus_sdf
+from neural_sdf.data import generate_dataset
 import numpy as np
 
 # values from head
 LEARNING_RATE = 0.001
 BATCH_SIZE = 64
-EPOCHS = 6
+EPOCHS = 240
 
 def train_loop(dataloader, model, loss_fn, optimizer, batch_size):
     model.train()
@@ -44,10 +44,9 @@ def test_loop(dataloader, model, loss_fn):
     print(f"Avg loss: {test_loss:>8f} \n")
 
 
-def train_model():
+def train_model(filepath: str, device):
     print("Training the model")
-    points = generate_dataset()
-    sdf = torus_sdf(points)
+    points, sdf = generate_dataset(filepath)
 
     n_train = int(0.8 * len(points))
 
@@ -59,13 +58,14 @@ def train_model():
     train_sdf_tensor = torch.from_numpy(train_sdf).float().unsqueeze(1)
     test_sdf_tensor = torch.from_numpy(test_sdf).float().unsqueeze(1)
 
-    train_dataset = TensorDataset(train_points_tensor, train_sdf_tensor)
-    test_dataset = TensorDataset(test_points_tensor, test_sdf_tensor)
+    train_dataset = TensorDataset(train_points_tensor.to(device), train_sdf_tensor.to(device))
+    test_dataset = TensorDataset(test_points_tensor.to(device), test_sdf_tensor.to(device))
 
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
     model = SDFNet()
+    model.to(device)
     loss = nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -75,4 +75,4 @@ def train_model():
         test_loop(dataloader=test_dataloader, model=model, loss_fn=loss)
     
     print("Training complete! Saving the model")
-    torch.save(model.state_dict(), "torus.pt")
+    torch.save(model.state_dict(), "model.pt")
