@@ -4,8 +4,9 @@ import numpy as np
 R = 0.4
 r = 0.2
 MARGIN = 1.2 # +20%
+BOUND = (R + r) * MARGIN
 
-def torus_sdf(points, R, r):
+def torus_sdf(points):
     q = np.stack(
         [np.linalg.norm(points[:, [0,2]], axis=-1) - R, points[:, 1]],
         axis=-1
@@ -14,9 +15,7 @@ def torus_sdf(points, R, r):
     return np.linalg.norm(q, axis=-1) - r
 
 def generate_dataset():
-
     rng = np.random.default_rng(0)
-    bound = (R + r) * MARGIN
 
-    points = rng.uniform(-bound, bound, size=(100_000, 3))
+    points = rng.uniform(-BOUND, BOUND, size=(100_000, 3))
     return points

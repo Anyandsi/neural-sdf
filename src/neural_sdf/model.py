@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 class SDFNet(nn.Module):
     def __init__(self):
         super().__init__()
