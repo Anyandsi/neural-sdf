@@ -34,7 +34,6 @@ def main() -> None:
             out.append(model(torch.from_numpy(chunk).to(device)).squeeze(-1).cpu().numpy())
     
     sdf_grid = np.concatenate(out).reshape(res, res, res)
-    print("predictions: ", sdf_grid.min(), sdf_grid.max())
     r_vertices, r_faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
     r_vertices += xs[0]
 

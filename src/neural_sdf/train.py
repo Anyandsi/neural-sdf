@@ -6,42 +6,32 @@ from neural_sdf.model import SDFNet
 from neural_sdf.data import generate_dataset
 import numpy as np
 
-# values from head
 LEARNING_RATE = 0.0001
-BATCH_SIZE = 64
-EPOCHS = 120
+BATCH_SIZE = 8192
+EPOCHS = 10000
 
-def train_loop(dataloader, model, loss_fn, optimizer, batch_size):
+def test_loop(X_all, y_all, model, loss_fn):
+    model.eval()
+    with torch.no_grad():
+        test_loss = loss_fn(model(X_all), y_all).item()
+    print(f"Avg loss: {test_loss:>8f}")
+
+
+def train_loop(X_all, y_all, model, loss_fn, optimizer, batch_size):
     model.train()
+    n = X_all.shape[0]
+    perm = torch.randperm(n, device=X_all.device)
 
-    size = len(dataloader.dataset)
+    for start in range(0, n, batch_size):
+        idx = perm[start:start + batch_size]
+        X, y = X_all[idx], y_all[idx]
 
-    for batch, (X, y) in enumerate(dataloader):
         pred = model(X)
         loss = loss_fn(pred, y)
 
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
-
-        if batch % 100 == 0:
-            loss, current = loss.item(), batch * batch_size + len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-
-
-def test_loop(dataloader, model, loss_fn):
-    model.eval()
-
-    num_batches = len(dataloader)
-    test_loss = 0
-
-    with torch.no_grad():
-        for X, y in dataloader:
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-
-    test_loss /= num_batches
-    print(f"Avg loss: {test_loss:>8f} \n")
 
 
 def train_model(filepath: str, device):
@@ -58,11 +48,8 @@ def train_model(filepath: str, device):
     train_sdf_tensor = torch.from_numpy(train_sdf).float().unsqueeze(1)
     test_sdf_tensor = torch.from_numpy(test_sdf).float().unsqueeze(1)
 
-    train_dataset = TensorDataset(train_points_tensor.to(device), train_sdf_tensor.to(device))
-    test_dataset = TensorDataset(test_points_tensor.to(device), test_sdf_tensor.to(device))
-
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
+    train_X, train_y = train_points_tensor.to(device), train_sdf_tensor.to(device)
+    test_X,  test_y  = test_points_tensor.to(device),  test_sdf_tensor.to(device)
 
     model = SDFNet()
     model.to(device)
@@ -70,9 +57,10 @@ def train_model(filepath: str, device):
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     for epoch in range(EPOCHS):
-        print("EPOCH #", epoch)
-        train_loop(dataloader=train_dataloader, model=model, loss_fn=loss, optimizer=optimizer, batch_size=BATCH_SIZE)
-        test_loop(dataloader=test_dataloader, model=model, loss_fn=loss)
+        train_loop(train_X, train_y, model, loss, optimizer, BATCH_SIZE)
+        if epoch % 10 == 0:
+            print("EPOCH #", epoch)
+            test_loop(test_X, test_y, model, loss)
     
     print("Training complete! Saving the model")
     torch.save(model.state_dict(), "model.pt")
