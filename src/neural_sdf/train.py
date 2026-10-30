@@ -1,14 +1,18 @@
 import torch
 from torch import nn
+import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 from neural_sdf.model import SDFNet
 from neural_sdf.data import generate_dataset
-import numpy as np
 
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 8192
 EPOCHS = 10000
+DELTA = 0.1
+
+def clamped_l1(pred, y):
+    return (torch.clamp(pred, -DELTA, DELTA) - torch.clamp(y, -DELTA, DELTA)).abs().mean()
 
 def test_loop(X_all, y_all, model, loss_fn):
     model.eval()
@@ -53,7 +57,7 @@ def train_model(filepath: str, device):
 
     model = SDFNet()
     model.to(device)
-    loss = nn.L1Loss()
+    loss = clamped_l1
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     for epoch in range(EPOCHS):
