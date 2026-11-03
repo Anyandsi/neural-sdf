@@ -331,6 +331,7 @@ name = "neural-sdf"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "joblib" },
     { name = "mesh-to-sdf" },
     { name = "numpy" },
     { name = "polyscope" },
@@ -344,6 +345,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "joblib", specifier = ">=1.6.0" },
     { name = "mesh-to-sdf", specifier = ">=0.0.15" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "polyscope", specifier = ">=2.6.1" },

@@ -24,7 +24,7 @@ def main() -> None:
     model.to(device)
     model.eval()
 
-    # visualize
+    # visualize reconstructed mesh alongside the original
     with torch.no_grad():
         xs = np.linspace(-bound, bound, res, dtype=np.float32)
         grid = np.stack(np.meshgrid(xs, xs, xs, indexing="ij"), axis=-1).reshape(-1, 3)
@@ -37,7 +37,6 @@ def main() -> None:
     r_vertices, r_faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
     r_vertices += xs[0]
 
-    # add original for comparison
     bunny_mesh = scale_to_unit_sphere(bunny_mesh)
     
     ps.init()

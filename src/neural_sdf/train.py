@@ -8,7 +8,7 @@ from neural_sdf.data import generate_dataset
 
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 8192
-EPOCHS = 10000
+EPOCHS = 2000
 DELTA = 0.1
 
 def clamped_l1(pred, y):

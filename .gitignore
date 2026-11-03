@@ -8,3 +8,4 @@ build/
 *.pth
 checkpoints/
 data/
+cache/
