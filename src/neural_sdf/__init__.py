@@ -3,6 +3,7 @@ import trimesh
 import pymeshlab
 import polyscope as ps
 import numpy as np
+from scipy.spatial import KDTree
 from neural_sdf.train import train_model
 from neural_sdf.model import SDFNet
 from skimage.measure import marching_cubes
@@ -15,9 +16,10 @@ def main() -> None:
 
     # meshes to train on
     BUNNY_PATH = "data/bunny_watertight.obj"
-    bunny_mesh = trimesh.load_mesh(BUNNY_PATH)
+    DRAGON_PATH = "data/dragon_watertight.obj"
+    original_mesh = trimesh.load_mesh(DRAGON_PATH)
 
-    train_model(BUNNY_PATH, device)
+    #train_model(DRAGON_PATH, device)
 
     model = SDFNet()
     model.load_state_dict(torch.load("model.pt"))
@@ -37,9 +39,24 @@ def main() -> None:
     r_vertices, r_faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
     r_vertices += xs[0]
 
-    bunny_mesh = scale_to_unit_sphere(bunny_mesh)
+    original_mesh = scale_to_unit_sphere(original_mesh)
+    reconstructed_mesh = trimesh.Trimesh(vertices=r_vertices, faces=r_faces)
     
     ps.init()
     ps.register_surface_mesh("reconstructed mesh", r_vertices, r_faces)
-    ps.register_surface_mesh("original mesh", bunny_mesh.vertices, bunny_mesh.faces).translate([2.5, 0, 0])
+    ps.register_surface_mesh("original mesh", original_mesh.vertices, original_mesh.faces).translate([2.5, 0, 0])
     ps.show()
+
+    print("chamfer: ", chamfer_distance(reconstructed_mesh, original_mesh, 500_000))
+
+
+def chamfer_distance(mesh1, mesh2, n_sampled_points):
+    points1, _ = trimesh.sample.sample_surface(mesh1, n_sampled_points)
+    points2, _ = trimesh.sample.sample_surface(mesh2, n_sampled_points)
+
+    tree1 = KDTree(points1)
+    dists1, _ = tree1.query(points2)
+    tree2 = KDTree(points2)
+    dists2, _ = tree2.query(points1)
+
+    return np.mean(dists1) + np.mean(dists2)
