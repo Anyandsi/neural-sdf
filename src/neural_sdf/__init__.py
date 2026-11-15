@@ -19,7 +19,7 @@ def main() -> None:
     DRAGON_PATH = "data/dragon_watertight.obj"
     original_mesh = trimesh.load_mesh(DRAGON_PATH)
 
-    #train_model(DRAGON_PATH, device)
+    train_model(DRAGON_PATH, device)
 
     model = SDFNet()
     model.load_state_dict(torch.load("model.pt"))

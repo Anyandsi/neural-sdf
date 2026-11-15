@@ -10,9 +10,13 @@ LEARNING_RATE = 0.0001
 BATCH_SIZE = 8192
 EPOCHS = 2000
 DELTA = 0.1
+EIKONAL_WEIGHT = 0.1
 
 def clamped_l1(pred, y):
     return (torch.clamp(pred, -DELTA, DELTA) - torch.clamp(y, -DELTA, DELTA)).abs().mean()
+
+def eikonal(grad_y):
+    return ((grad_y.norm(dim=-1) - 1)**2).mean()
 
 def test_loop(X_all, y_all, model, loss_fn):
     model.eval()
@@ -30,9 +34,12 @@ def train_loop(X_all, y_all, model, loss_fn, optimizer, batch_size):
         idx = perm[start:start + batch_size]
         X, y = X_all[idx], y_all[idx]
 
+        X.requires_grad = True
+        
         pred = model(X)
-        loss = loss_fn(pred, y)
 
+        loss = loss_fn(pred, y) + EIKONAL_WEIGHT * eikonal(torch.autograd.grad(pred, X, grad_outputs=torch.ones_like(pred), create_graph=True)[0])
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
