@@ -17,7 +17,7 @@ class SDFNet(nn.Module):
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
-            nn.Linear(512, 1), nn.Tanh(),
+            nn.Linear(512, 1),
         )
     
     def forward(self, x):

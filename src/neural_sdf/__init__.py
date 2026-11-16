@@ -14,6 +14,8 @@ def main() -> None:
     bound = 1.0 # match the normalization in mesh_to_sdf step
     res = 256
 
+    torch.set_float32_matmul_precision("high")
+
     # meshes to train on
     BUNNY_PATH = "data/bunny_watertight.obj"
     DRAGON_PATH = "data/dragon_watertight.obj"
