@@ -20,17 +20,20 @@ DIRICHLET_WEIGHT = 1.0
 NUM_NEAR_POINTS = 500000
 NUM_SURFACE_POINTS = 100000
 
-# loss terms
-
+# we only care about accurate numeric predictions close to the surface
 def clamped_l1(pred, y):
     return (torch.clamp(pred, -DELTA, DELTA) - torch.clamp(y, -DELTA, DELTA)).abs().mean()
 
+# gradients should ideally be of magnitude 1 everywhere
 def eikonal(grad):
     return ((grad.norm(dim=-1) - 1)**2).mean()
 
+# direction of the gradient should ideally be the same as normals direction at that point
+# this and the next term require a separate set of points sampled exclusively on the mesh
 def neumann(grad, normal_y):
     return (1 - torch.nn.functional.cosine_similarity(grad, normal_y, dim=-1)).mean()
 
+# the points sampled on the mesh must return 0
 def dirichlet(pred):
     return pred.abs().mean()
 
@@ -77,6 +80,7 @@ def train_loop(X_near_all, y_near_all, X_surface_all, y_normals_all, model, loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
 
 def forward_with_grad(model, X):
     X.requires_grad = True
@@ -87,6 +91,7 @@ def forward_with_grad(model, X):
 
 
 def train_model(filepath: str, device):
+    torch.manual_seed(0)
     print("Training the model")
     dataset = generate_dataset(filepath=filepath, num_near_points=NUM_NEAR_POINTS, num_surface_points=NUM_SURFACE_POINTS)
 
@@ -111,12 +116,15 @@ def train_model(filepath: str, device):
     model = SDFNet()
     model.to(device)
     loss = clamped_l1
+
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
     for epoch in range(EPOCHS):
         train_loop(train_near_X, train_near_y, train_surface_X, train_surface_y, model, loss, optimizer, BATCH_SIZE)
+        scheduler.step()
         if epoch % 10 == 0:
-            print("EPOCH #", epoch)
+            print("EPOCH #", epoch, scheduler.get_last_lr()[0])
             test_loop(test_near_X, test_near_y, model, loss)
     
     print("Training complete! Saving the model")
