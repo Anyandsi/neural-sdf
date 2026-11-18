@@ -43,13 +43,13 @@ def main() -> None:
 
     original_mesh = scale_to_unit_sphere(original_mesh)
     reconstructed_mesh = trimesh.Trimesh(vertices=r_vertices, faces=r_faces)
+
+    print("chamfer: ", chamfer_distance(reconstructed_mesh, original_mesh, 500_000))
     
     ps.init()
     ps.register_surface_mesh("reconstructed mesh", r_vertices, r_faces)
     ps.register_surface_mesh("original mesh", original_mesh.vertices, original_mesh.faces).translate([2.5, 0, 0])
     ps.show()
-
-    print("chamfer: ", chamfer_distance(reconstructed_mesh, original_mesh, 500_000))
 
 
 def chamfer_distance(mesh1, mesh2, n_sampled_points):

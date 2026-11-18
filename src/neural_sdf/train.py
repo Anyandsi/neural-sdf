@@ -6,10 +6,11 @@ from torch.utils.data import TensorDataset
 from neural_sdf.model import SDFNet
 from neural_sdf.data import generate_dataset
 
-LEARNING_RATE = 0.0001
-BATCH_SIZE = 8192
+LEARNING_RATE = 0.0002
+BATCH_SIZE = 32768
 SURFACE_BATCH_SIZE = BATCH_SIZE // 4
 EPOCHS = 2000
+WARMUP_EPOCHS = 20
 DELTA = 0.1
 
 SDF_WEIGHT = 1.0
@@ -18,6 +19,7 @@ NEUMANN_WEIGHT = 0.1
 DIRICHLET_WEIGHT = 1.0
 
 NUM_NEAR_POINTS = 500000
+NUM_FAR_POINTS = 50000
 NUM_SURFACE_POINTS = 100000
 
 # we only care about accurate numeric predictions close to the surface
@@ -44,31 +46,31 @@ def test_loop(X_all, y_all, model, loss_fn):
     print(f"Avg loss: {test_loss:>8f}")
 
 
-def train_loop(X_near_all, y_near_all, X_surface_all, y_normals_all, model, loss_fn, optimizer, batch_size):
+def train_loop(X_sdf_all, y_sdf_all, X_surface_all, y_normals_all, model, loss_fn, optimizer, batch_size):
     model.train()
-    n = X_near_all.shape[0]
-    perm = torch.randperm(n, device=X_near_all.device)
+    n = X_sdf_all.shape[0]
+    perm = torch.randperm(n, device=X_sdf_all.device)
 
     for start in range(0, n, batch_size):
-        # separately get next batch of near surface points
+        # separately get next batch of sdf points
         # and a random batch of surface points
         # compute their predictions and gradients 
         idx = perm[start:start + batch_size]
-        X_near, y_near = X_near_all[idx], y_near_all[idx]
+        X_sdf, y_sdf = X_sdf_all[idx], y_sdf_all[idx]
 
         surface_idx = torch.randint(0, X_surface_all.shape[0], (SURFACE_BATCH_SIZE,))
         X_surface, y_normals = X_surface_all[surface_idx], y_normals_all[surface_idx]
         
         # single forward pass over both batches, then split back
-        n_near = X_near.shape[0]
-        pred, grad = forward_with_grad(model, torch.cat([X_near, X_surface]))
-        pred_near, pred_surface = pred[:n_near], pred[n_near:]
-        grad_near, grad_surface = grad[:n_near], grad[n_near:]
+        n_sdf = X_sdf.shape[0]
+        pred, grad = forward_with_grad(model, torch.cat([X_sdf, X_surface]))
+        pred_sdf, pred_surface = pred[:n_sdf], pred[n_sdf:]
+        grad_sdf, grad_surface = grad[:n_sdf], grad[n_sdf:]
 
         # compute loss terms
 
-        sdf_loss = loss_fn(pred_near, y_near)
-        eik_loss = eikonal(grad_near)
+        sdf_loss = loss_fn(pred_sdf, y_sdf)
+        eik_loss = eikonal(grad_sdf)
         neu_loss = neumann(grad_surface, y_normals)
         dir_loss = dirichlet(pred_surface)
 
@@ -93,39 +95,41 @@ def forward_with_grad(model, X):
 def train_model(filepath: str, device):
     torch.manual_seed(0)
     print("Training the model")
-    dataset = generate_dataset(filepath=filepath, num_near_points=NUM_NEAR_POINTS, num_surface_points=NUM_SURFACE_POINTS)
+    dataset = generate_dataset(filepath=filepath, num_near_points=NUM_NEAR_POINTS, num_surface_points=NUM_SURFACE_POINTS, num_far_points=NUM_FAR_POINTS)
 
-    n_train = int(0.8 * NUM_NEAR_POINTS) # since we only test l1 on near points
+    n_train = int(0.8 * len(dataset["sdf_points"])) # since we only test l1 on sdf points
 
-    train_points_near, test_points_near = dataset["near_points"][:n_train], dataset["near_points"][n_train:]
-    train_sdf_near, test_sdf_near = dataset["near_sdf"][:n_train], dataset["near_sdf"][n_train:]
+    train_sdf_points, test_sdf_points = dataset["sdf_points"][:n_train], dataset["sdf_points"][n_train:]
+    train_sdf_values, test_sdf_values = dataset["sdf_values"][:n_train], dataset["sdf_values"][n_train:]
 
-    train_points_near_tensor = torch.from_numpy(train_points_near).float()
-    test_points_near_tensor = torch.from_numpy(test_points_near).float()
-    train_sdf_near_tensor = torch.from_numpy(train_sdf_near).float().unsqueeze(1)
-    test_sdf_near_tensor = torch.from_numpy(test_sdf_near).float().unsqueeze(1)
+    train_sdf_points_tensor = torch.from_numpy(train_sdf_points).float()
+    test_sdf_points_tensor = torch.from_numpy(test_sdf_points).float()
+    train_sdf_values_tensor = torch.from_numpy(train_sdf_values).float().unsqueeze(1)
+    test_sdf_values_tensor = torch.from_numpy(test_sdf_values).float().unsqueeze(1)
 
     # only test on clamped l1, use point/normal pairs only during training
     train_points_surface_tensor = torch.from_numpy(dataset["surface_points"]).float()
     train_normals_surface_tensor = torch.from_numpy(dataset["surface_normals"]).float()
 
-    train_near_X, train_near_y = train_points_near_tensor.to(device), train_sdf_near_tensor.to(device)
+    train_sdf_X, train_sdf_y = train_sdf_points_tensor.to(device), train_sdf_values_tensor.to(device)
     train_surface_X, train_surface_y = train_points_surface_tensor.to(device), train_normals_surface_tensor.to(device)
-    test_near_X,  test_near_y  = test_points_near_tensor.to(device),  test_sdf_near_tensor.to(device)
+    test_sdf_X,  test_sdf_y  = test_sdf_points_tensor.to(device),  test_sdf_values_tensor.to(device)
 
     model = SDFNet()
     model.to(device)
     loss = clamped_l1
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=WARMUP_EPOCHS)
+    cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS - WARMUP_EPOCHS)
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[WARMUP_EPOCHS])
 
     for epoch in range(EPOCHS):
-        train_loop(train_near_X, train_near_y, train_surface_X, train_surface_y, model, loss, optimizer, BATCH_SIZE)
+        train_loop(train_sdf_X, train_sdf_y, train_surface_X, train_surface_y, model, loss, optimizer, BATCH_SIZE)
         scheduler.step()
         if epoch % 10 == 0:
             print("EPOCH #", epoch, scheduler.get_last_lr()[0])
-            test_loop(test_near_X, test_near_y, model, loss)
+            test_loop(test_sdf_X, test_sdf_y, model, loss)
     
     print("Training complete! Saving the model")
     torch.save(model.state_dict(), "model.pt")
