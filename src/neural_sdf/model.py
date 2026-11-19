@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.nn.utils.parametrizations import weight_norm
 
 NUM_FREQS = 6
 

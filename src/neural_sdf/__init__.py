@@ -1,6 +1,5 @@
 import torch
 import trimesh
-import pymeshlab
 import polyscope as ps
 import numpy as np
 from scipy.spatial import KDTree
