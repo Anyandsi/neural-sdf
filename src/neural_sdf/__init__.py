@@ -1,30 +1,61 @@
 import torch
 import trimesh
+import argparse
 import polyscope as ps
 import numpy as np
+from pathlib import Path
 from scipy.spatial import KDTree
 from neural_sdf.train import train_model
 from neural_sdf.model import SDFNet
 from neural_sdf.data import prepare_mesh
 from skimage.measure import marching_cubes
 from mesh_to_sdf.utils import scale_to_unit_sphere
+from neural_sdf.data import MESH_OPTIONS
+
+MODELS_DIR = Path("models")
 
 def main() -> None:
-    device="cuda"
-    bound = 1.0 # match the normalization in mesh_to_sdf step
-    res = 256
+    parser = argparse.ArgumentParser()
+
+    # either train a new model from scratch and overwrite it [train], then show comparison
+    # or just show comparison [display] (model must be there!)
+    parser.add_argument(
+    "command",
+    choices=["train", "display"],
+    help="Operation mode. [train] will create a new model or overwrite the existing one "
+         "before displaying the results. [display] will only display the result from exisitng model (file must exist under models/)." ,
+)
+
+    # choose mesh from the available options, bunny is default
+    parser.add_argument("--mesh", choices=MESH_OPTIONS, default="bunny", help="Mesh to train on or display. [bunny] is default option")
+    args = parser.parse_args()
 
     torch.set_float32_matmul_precision("high")
+    mesh_path = str(prepare_mesh(args.mesh))
+    model_path = MODELS_DIR / f"{args.mesh}.pt"
 
-    # meshes to train on
-    BUNNY_PATH = "data/bunny_watertight.obj"
-    DRAGON_PATH = str(prepare_mesh("dragon"))
-    original_mesh = trimesh.load_mesh(DRAGON_PATH)
+    if args.command == "train":
+        train_and_display(mesh_path, model_path)
+    else:
+        display(mesh_path, model_path)
 
-    train_model(DRAGON_PATH, device)
+
+def train_and_display(mesh_path, model_path):
+    MODELS_DIR.mkdir(exist_ok=True)
+    train_model(mesh_path, "cuda", model_path)
+    display(mesh_path, model_path)
+
+
+def display(mesh_path, model_path):
+    device = "cuda"
+    bound = 1.0  # match the normalization in mesh_to_sdf step
+    res = 256
+
+    if not model_path.exists():
+        raise SystemExit(f"{model_path} not found, run uv run neural-sdf train --mesh {model_path.stem}")
 
     model = SDFNet()
-    model.load_state_dict(torch.load("model.pt"))
+    model.load_state_dict(torch.load(model_path))
     model.to(device)
     model.eval()
 
@@ -41,6 +72,7 @@ def main() -> None:
     r_vertices, r_faces, _, _ = marching_cubes(sdf_grid, level=0.0, spacing=(xs[1] - xs[0],) * 3)
     r_vertices += xs[0]
 
+    original_mesh = trimesh.load_mesh(mesh_path)
     original_mesh = scale_to_unit_sphere(original_mesh)
     reconstructed_mesh = trimesh.Trimesh(vertices=r_vertices, faces=r_faces)
 

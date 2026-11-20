@@ -1,6 +1,7 @@
 import torch
 from neural_sdf.model import SDFNet
 from neural_sdf.data import generate_dataset
+from pathlib import Path
 
 LEARNING_RATE = 0.0002
 BATCH_SIZE = 32768
@@ -88,7 +89,7 @@ def forward_with_grad(model, X):
     return pred, grad
 
 
-def train_model(filepath: str, device):
+def train_model(filepath: str, device: str, model_path: Path):
     torch.manual_seed(0)
     print("Training the model")
     dataset = generate_dataset(filepath=filepath, num_near_points=NUM_NEAR_POINTS, num_surface_points=NUM_SURFACE_POINTS, num_far_points=NUM_FAR_POINTS)
@@ -128,4 +129,4 @@ def train_model(filepath: str, device):
             test_loop(test_sdf_X, test_sdf_y, model, loss)
     
     print("Training complete! Saving the model")
-    torch.save(model.state_dict(), "model.pt")
+    torch.save(model.state_dict(), model_path)
