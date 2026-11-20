@@ -1,10 +1,66 @@
-import trimesh
+import tarfile
+import urllib.request
 import warnings
+from pathlib import Path
+
 import joblib
 import mesh_to_sdf
 import numpy as np
+import pymeshlab
+import trimesh
 
 memory = joblib.Memory("cache", verbose=0)
+
+DATA_DIR = Path("data")
+
+MESH_OPTIONS = {
+    "bunny": (
+        "http://graphics.stanford.edu/pub/3Dscanrep/bunny.tar.gz",
+        "bunny/reconstruction/bun_zipper.ply",
+    ),
+    "dragon": (
+        "http://graphics.stanford.edu/pub/3Dscanrep/dragon/dragon_recon.tar.gz",
+        "dragon_recon/dragon_vrip.ply",
+    ),
+}
+
+# download a Stanford scan and repair it into a watertight mesh, unless required mesh already exists
+# returns the path of the watertight mesh
+def prepare_mesh(name: str) -> Path:
+    output_path = DATA_DIR / f"{name}_watertight.obj"
+    if output_path.exists():
+        return output_path
+
+    url, member = MESH_OPTIONS[name]
+    archive = DATA_DIR / url.rsplit("/", 1)[-1]
+    DATA_DIR.mkdir(exist_ok=True)
+
+    print(f"Downloading {url}")
+
+    urllib.request.urlretrieve(url, archive)
+    with tarfile.open(archive) as tar:
+        tar.extract(member, DATA_DIR, filter="data")
+    
+    print("Preprocessing downloaded mesh...")
+
+    # have to repair the mesh first, as these scans are usually not watertight
+    # also additional preprocessing
+    ms = pymeshlab.MeshSet()
+    ms.load_new_mesh(str(DATA_DIR / member))
+    ms.meshing_remove_duplicate_vertices()
+    ms.meshing_remove_duplicate_faces()
+    ms.meshing_remove_unreferenced_vertices()
+    ms.meshing_repair_non_manifold_edges()
+    ms.meshing_repair_non_manifold_vertices()
+    ms.meshing_close_holes(maxholesize=10000, selfintersection=False)
+    ms.save_current_mesh(str(output_path))
+
+    if not trimesh.load_mesh(output_path).is_watertight:
+        raise RuntimeError(f"Preprocessing step failed: {output_path} remains not watertight")
+    
+    print(f"Saved {output_path}")
+    return output_path
+
 
 @memory.cache
 # return two shuffled data sets

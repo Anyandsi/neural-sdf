@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from neural_sdf.train import train_model
 from neural_sdf.model import SDFNet
+from neural_sdf.data import prepare_mesh
 from skimage.measure import marching_cubes
 from mesh_to_sdf.utils import scale_to_unit_sphere
 
@@ -17,7 +18,7 @@ def main() -> None:
 
     # meshes to train on
     BUNNY_PATH = "data/bunny_watertight.obj"
-    DRAGON_PATH = "data/dragon_watertight.obj"
+    DRAGON_PATH = str(prepare_mesh("dragon"))
     original_mesh = trimesh.load_mesh(DRAGON_PATH)
 
     train_model(DRAGON_PATH, device)
