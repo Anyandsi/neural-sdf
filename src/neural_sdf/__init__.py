@@ -55,7 +55,7 @@ def display(mesh_path, model_path):
         raise SystemExit(f"{model_path} not found, run uv run neural-sdf train --mesh {model_path.stem}")
 
     model = SDFNet()
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
 
