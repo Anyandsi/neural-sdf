@@ -55,7 +55,7 @@ def train_loop(X_sdf_all, y_sdf_all, X_surface_all, y_normals_all, model, loss_f
         idx = perm[start:start + batch_size]
         X_sdf, y_sdf = X_sdf_all[idx], y_sdf_all[idx]
 
-        surface_idx = torch.randint(0, X_surface_all.shape[0], (SURFACE_BATCH_SIZE,))
+        surface_idx = torch.randint(0, X_surface_all.shape[0], (SURFACE_BATCH_SIZE,), device=X_surface_all.device)
         X_surface, y_normals = X_surface_all[surface_idx], y_normals_all[surface_idx]
         
         # single forward pass over both batches, then split back

@@ -47,7 +47,7 @@ def train_and_display(mesh_path, model_path):
 
 
 def display(mesh_path, model_path):
-    device = "cuda"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     bound = 1.0  # match the normalization in mesh_to_sdf step
     res = 256
 
@@ -80,7 +80,7 @@ def display(mesh_path, model_path):
     
     ps.init()
     ps.register_surface_mesh("reconstructed mesh", r_vertices, r_faces)
-    ps.register_surface_mesh("original mesh", original_mesh.vertices, original_mesh.faces).translate([2.5, 0, 0])
+    ps.register_surface_mesh("original mesh", original_mesh.vertices, original_mesh.faces).translate([1.0, 0.0, 1.0])
     ps.show()
 
 

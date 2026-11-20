@@ -6,19 +6,18 @@ NUM_FREQS = 6
 class SDFNet(nn.Module):
     def __init__(self):
         super().__init__()
-
-        # reserve for Fourier positional encoding
+        
         self.register_buffer("freqs", (2 ** torch.arange(NUM_FREQS)) * torch.pi)
         enc_dim = 3 + 6 * NUM_FREQS
 
-        self.first_layer = nn.Sequential(
+        self.block1 = nn.Sequential(
             nn.Linear(enc_dim, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512 - enc_dim), nn.ReLU(),
         )
 
-        self.second_layer = nn.Sequential(
+        self.block2 = nn.Sequential(
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
             nn.Linear(512, 512), nn.ReLU(),
@@ -31,5 +30,5 @@ class SDFNet(nn.Module):
         waves = waves.flatten(start_dim=1)
         e = torch.cat([x, waves], dim=-1)
 
-        h = self.first_layer(e)
-        return self.second_layer(torch.cat([h, e], dim=1))
+        h = self.block1(e)
+        return self.block2(torch.cat([h, e], dim=1))
