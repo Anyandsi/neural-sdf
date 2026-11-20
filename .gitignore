@@ -9,3 +9,6 @@ build/
 checkpoints/
 data/
 cache/
+
+.polyscope.ini
+imgui.ini
